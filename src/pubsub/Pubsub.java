@@ -9,152 +9,123 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 
-public class Pubsub implements Runnable
-{
-	public class Operation
-	{
-		public Operation(String type, Object o)
-		{
-			this.type = type;
-			this.payload = o;
-		}
+public class Pubsub implements Runnable {
 
-		public final String type;
+  public class Operation {
 
-		public final Object payload;
-	}
+    public Operation(String type, Object o) {
+      this.type = type;
+      this.payload = o;
+    }
 
-	public interface Listener
-	{
-		public void onEventReceived(String type, Object object);
-	}
+    public final String type;
 
-	private int NUMBER_OF_THREADS = 1;
+    public final Object payload;
+  }
 
-	ExecutorService ex;
+  public interface Listener {
+    void onEventReceived(String type, Object object);
+  }
 
-	private final BlockingQueue<Operation> mQueue;
+  private int NUMBER_OF_THREADS = 1;
 
-	private Map<String, Set<Listener>> listeners;
+  ExecutorService ex;
 
-	private static Pubsub _instance;
+  private final BlockingQueue<Operation> mQueue;
 
-	public static Pubsub getInstance()
-	{
-		if (_instance == null)
-		{
-			synchronized (Pubsub.class)
-			{
-				if (_instance == null)
-					_instance = new Pubsub();
-			}
-		}
-		return _instance;
-	}
+  private Map<String, Set<Listener>> listeners;
 
-	private Pubsub()
-	{
-		listeners = new ConcurrentHashMap<String, Set<Listener>>();
-		mQueue = new LinkedBlockingQueue<Operation>();
-		ex = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
-		ex.submit(this);
-	}
+  private static Pubsub _instance;
 
-	public void addListener(String type, Listener listener)
-	{
-		add(type, listener);
-	}
+  public static Pubsub getInstance() {
+    if (_instance == null) {
+      synchronized (Pubsub.class) {
+        if (_instance == null) _instance = new Pubsub();
+      }
+    }
+    return _instance;
+  }
 
-	public void addListeners(Listener listener, String... types)
-	{
-		for (String type : types)
-		{
-			add(type, listener);
-		}
-	}
+  private Pubsub() {
+    listeners = new ConcurrentHashMap<String, Set<Listener>>();
+    mQueue = new LinkedBlockingQueue<Operation>();
+    ex = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
+    ex.submit(this);
+  }
 
-	private void add(String type, Listener listener)
-	{
-		Set<Listener> list;
-		list = listeners.get(type);
-		if (list == null)
-		{
-			synchronized (this) // take a smaller lock
-			{
-				if ((list = listeners.get(type)) == null)
-				{
-					list = new CopyOnWriteArraySet<Listener>();
-					listeners.put(type, list);
-				}
-			}
-		}
-		list.add(listener);
-	}
+  public void addListener(String type, Listener listener) {
+    add(type, listener);
+  }
 
-	public void removeListener(String type, Listener listener)
-	{
-		remove(type, listener);
-	}
+  public void addListeners(Listener listener, String... types) {
+    for (String type : types) {
+      add(type, listener);
+    }
+  }
 
-	public void removeListeners(Listener listener, String... types)
-	{
-		for (String type : types)
-		{
-			remove(type, listener);
-		}
-	}
+  private void add(String type, Listener listener) {
+    Set<Listener> list;
+    list = listeners.get(type);
+    if (list == null) {
+      synchronized (this) { // take a smaller lock
+        if ((list = listeners.get(type)) == null) {
+          list = new CopyOnWriteArraySet<Listener>();
+          listeners.put(type, list);
+        }
+      }
+    }
+    list.add(listener);
+  }
 
-	private void remove(String type, Listener listener)
-	{
-		Set<Listener> l = null;
-		l = listeners.get(type);
-		if (l != null)
-		{
-			l.remove(listener);
-		}
-	}
+  public void removeListener(String type, Listener listener) {
+    remove(type, listener);
+  }
 
-	public boolean publish(String type, Object o)
-	{
-		Set<Listener> l = listeners.get(type);
-		if (l != null && l.size() >= 0)
-		{
-			mQueue.add(new Operation(type, o));
-			return true;
-		}
-		return false;
-	}
+  public void removeListeners(Listener listener, String... types) {
+    for (String type : types) {
+      remove(type, listener);
+    }
+  }
 
-	@Override
-	public void run()
-	{
-		Operation op;
-		while (true)
-		{
-			try
-			{
-				op = mQueue.take();
-			}
-			catch (InterruptedException e)
-			{
-				continue;
-			}
+  private void remove(String type, Listener listener) {
+    Set<Listener> l = null;
+    l = listeners.get(type);
+    if (l != null) {
+      l.remove(listener);
+    }
+  }
 
-			String type = op.type;
-			Object o = op.payload;
+  public boolean publish(String type, Object o) {
+    Set<Listener> l = listeners.get(type);
+    if (l != null && l.size() >= 0) {
+      mQueue.add(new Operation(type, o));
+      return true;
+    }
+    return false;
+  }
 
-			Set<Listener> list = listeners.get(type);
+  @Override
+  public void run() {
+    Operation op;
+    while (true) {
+      try {
+        op = mQueue.take();
+      } catch (InterruptedException e) {
+        continue;
+      }
 
-			if (list == null || list.isEmpty())
-			{
-				continue;
-			}
+      String type = op.type;
+      Object o = op.payload;
 
-			for (Listener l : list)
-			{
-				l.onEventReceived(type, o);
-			}
-		}
-	}
+      Set<Listener> list = listeners.get(type);
 
+      if (list == null || list.isEmpty()) {
+        continue;
+      }
+
+      for (Listener l : list) {
+        l.onEventReceived(type, o);
+      }
+    }
+  }
 }
